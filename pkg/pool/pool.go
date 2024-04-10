@@ -2,11 +2,25 @@ package pool
 
 import (
 	"context"
-	"fmt"
 	"sync"
 
 	"golang.org/x/sync/semaphore"
 )
+
+type Runnable interface {
+	Run(context.Context) error
+	Error(any)
+}
+
+type RunFunc func(context.Context) error
+
+var _ Runnable = RunFunc(nil)
+
+func (f RunFunc) Run(ctx context.Context) error {
+	return f(ctx)
+}
+
+func (f RunFunc) Error(any) {}
 
 type WorkerPool struct {
 	sem    *semaphore.Weighted
@@ -23,7 +37,6 @@ func New(count int) *WorkerPool {
 }
 
 func (w *WorkerPool) watcher(ctx context.Context) {
-	defer fmt.Println("Exiting pool")
 	for {
 		if err := w.sem.Acquire(ctx, 1); err != nil {
 			return
@@ -33,25 +46,22 @@ func (w *WorkerPool) watcher(ctx context.Context) {
 
 func (w *WorkerPool) worker(
 	ctx context.Context,
-	cb func(context.Context),
-	errCb func(any),
+	runnable Runnable,
 ) {
 	defer func() {
-		if err := recover(); err != nil && errCb != nil {
-			errCb(err)
+		if err := recover(); err != nil {
+			runnable.Error(err)
 		}
 	}()
 
 	defer w.sem.Release(1)
 
-	cb(ctx)
+	if err := runnable.Run(ctx); err != nil {
+		runnable.Error(err)
+	}
 }
 
-func (w *WorkerPool) Start(
-	ctx context.Context,
-	cb func(context.Context),
-	errCb func(any),
-) {
+func (w *WorkerPool) Start(ctx context.Context, runnable Runnable) {
 	ctx, cancel := context.WithCancel(ctx)
 
 	w.mu.Lock()
@@ -63,7 +73,7 @@ func (w *WorkerPool) Start(
 			return
 		}
 
-		go w.worker(ctx, cb, errCb)
+		go w.worker(ctx, runnable)
 	}
 
 	go w.watcher(ctx)

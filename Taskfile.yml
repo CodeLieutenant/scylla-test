@@ -30,8 +30,8 @@ tasks:
       - docker exec {{ .SCYLLADB_HOST }} cqlsh -f {{ .DOCKER_SCHEMA_FILE_PATH }}
   fmt:
     cmds:
-      - gofumpt -l -w docs/ cmd/ pkg/ proto/ main.go
-      - gci write --skip-generated --skip-vendor -s standard -s default docs/ cmd/ pkg/ proto/ main.go
+      - gofumpt -l -w  pkg/ main.go
+      - gci write --skip-generated --skip-vendor -s standard -s default pkg/ main.go
   lint:
     cmds:
       - golangci-lint run --color "always" -v

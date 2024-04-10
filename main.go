@@ -3,32 +3,21 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
 	"io"
 	"log"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
-	"github.com/CodeLieutenant/scylladbtest/pkg/pool"
-
 	"github.com/CodeLieutenant/scylladbtest/pkg/config"
+	"github.com/CodeLieutenant/scylladbtest/pkg/database"
+	"github.com/CodeLieutenant/scylladbtest/pkg/pool"
+	"github.com/CodeLieutenant/scylladbtest/pkg/serivices/random"
+	"github.com/CodeLieutenant/scylladbtest/pkg/serivices/ratelimit"
 	"github.com/CodeLieutenant/scylladbtest/pkg/utils"
 )
-
-func run(ctx context.Context) {
-	for {
-		select {
-		case <-ctx.Done():
-			fmt.Println("Done")
-			return
-		default:
-			fmt.Println("Hello World")
-			time.Sleep(5 * time.Second)
-		}
-	}
-}
 
 var (
 	parallelism  int
@@ -68,7 +57,7 @@ func main() {
 
 	cfg, err := parseConfig()
 	if err != nil {
-		log.Fatalf("Failed to parse config: %v", err)
+		log.Panicf("Failed to parse config: %v", err)
 	}
 
 	log.Printf("Config: %s %v", configFile, cfg)
@@ -82,24 +71,23 @@ func main() {
 
 	defer cancel()
 
-	clusterConfig, err := cfg.ScyllaDB.ToScyllaClusterConfig()
+	session, cleanup, err := database.NewScyllaDBConnection(&cfg.ScyllaDB)
+	defer cleanup()
+
 	if err != nil {
-		log.Fatalf("Failed to create ScyllaDB cluster config: %v", err)
+		log.Panicf("Failed to create ScyllaDB cluster config: %v", err)
 	}
 
-	session, err := clusterConfig.CreateSession()
-	if err != nil {
-		log.Fatalf("Failed to create ScyllaDB session: %v", err)
-	}
-
-	defer session.Close()
+	limiter := ratelimit.NewLeakyBucket(1, utils.Parallelism(parallelism), 1*time.Second)
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	inserter := random.New(session, limiter, logger)
 
 	wp := pool.New(utils.Parallelism(parallelism))
-	wp.Start(ctx, run, nil)
+	wp.Start(ctx, inserter)
 
 	<-ctx.Done()
 
 	if err := wp.Close(); err != nil {
-		log.Fatalf("Failed to close worker pool: %v", err)
+		log.Panicf("Failed to close worker pool: %v", err)
 	}
 }

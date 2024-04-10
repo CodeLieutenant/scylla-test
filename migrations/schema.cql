@@ -4,6 +4,6 @@ CREATE KEYSPACE scyllatest WITH REPLICATION = { 'class': 'NetworkTopologyStrateg
 USE scyllatest;
 
 CREATE TABLE randomdata (
-    url timeuuid PRIMARY KEY,
+    id timeuuid PRIMARY KEY,
     data int,
 );
