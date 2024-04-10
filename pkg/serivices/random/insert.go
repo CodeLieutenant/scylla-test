@@ -26,7 +26,7 @@ func New(session *gocql.Session, limiter ratelimit.Limiter, logger *slog.Logger)
 
 func (r *Insert) Run(ctx context.Context) error {
 	ch := r.limiter.Ready(ctx)
-	query := r.session.Query("INSERT INTO randomdata(id, data) VALUES (?, ?)")
+	query := r.session.Query("INSERT INTO randomdata(id, data) VALUES (?, ?);")
 	defer query.Release()
 
 	for {

@@ -36,18 +36,17 @@ func New(count int) *WorkerPool {
 	}
 }
 
-func (w *WorkerPool) watcher(ctx context.Context) {
+func (w *WorkerPool) watcher(ctx context.Context, runnable Runnable) {
 	for {
 		if err := w.sem.Acquire(ctx, 1); err != nil {
 			return
 		}
+
+		go w.worker(ctx, runnable)
 	}
 }
 
-func (w *WorkerPool) worker(
-	ctx context.Context,
-	runnable Runnable,
-) {
+func (w *WorkerPool) worker(ctx context.Context, runnable Runnable) {
 	defer func() {
 		if err := recover(); err != nil {
 			runnable.Error(err)
@@ -76,7 +75,7 @@ func (w *WorkerPool) Start(ctx context.Context, runnable Runnable) {
 		go w.worker(ctx, runnable)
 	}
 
-	go w.watcher(ctx)
+	w.watcher(ctx, runnable)
 }
 
 func (w *WorkerPool) Close() error {
@@ -87,7 +86,7 @@ func (w *WorkerPool) Close() error {
 	}
 	w.mu.Unlock()
 
-	// We can ignore error here, as context.Background
+	// We can ignore error here, as context.Background never done<-
 	_ = w.sem.Acquire(context.Background(), int64(w.count))
 	defer w.sem.Release(int64(w.count))
 	return nil

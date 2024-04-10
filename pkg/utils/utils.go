@@ -3,15 +3,15 @@ package utils
 import "runtime"
 
 func Parallelism(input ...int) int {
-	max := runtime.GOMAXPROCS(0)
+	// We can use runtime.NumOfCPU but that is hardcoded value
+	// and cannot be changed, GOMAXPROCS is ENV which can be abused
+	// to increase the number of goroutines running
+	// (especially in IO bounded environments)
+	defaults := runtime.GOMAXPROCS(0)
 
 	if len(input) == 0 {
-		return max
+		return defaults
 	}
 
-	if input[0] > max {
-		return max
-	}
-
-	return input[0]
+	return min(defaults, input[0])
 }
