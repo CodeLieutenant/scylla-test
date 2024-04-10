@@ -1,0 +1,47 @@
+networks:
+  default:
+    driver: bridge
+    name: scyllatest-network
+    ipam:
+      config:
+        - subnet: 192.168.100.0/24
+          gateway: 192.168.100.1
+
+volumes:
+  scylla1:
+  scylla2:
+
+services:
+  scylla1:
+    image: scylladb/scylla
+    command: --memory=2G --developer-mode=1 --smp=1 --cpuset=2 --io-setup=1 --overprovisioned=1
+    environment:
+      - "SCYLLA_JMX_ADDR=-ja 0.0.0.0"
+      - "SCYLLA_JMX_REMOTE=-r"
+    networks:
+      default:
+        ipv4_address: 192.168.100.2
+    ports:
+      - "9042:9042"
+    volumes:
+      - scylla1:/var/lib/scylla
+      - ./docker/scylladb/scylla.yaml:/etc/scylla/scylla.yaml
+      - ./docker/scylladb/cassandra-rackdc.properties:/etc/scylla/cassandra-rackdc.properties
+
+  scylla2:
+    image: scylladb/scylla
+    command: --memory=2G --developer-mode=1 --smp=1 --seeds=scylla1 --cpuset=2 --io-setup=1 --overprovisioned=1
+    environment:
+      - "SCYLLA_JMX_ADDR=-ja 0.0.0.0"
+      - "SCYLLA_JMX_REMOTE=-r"
+    networks:
+      default:
+        ipv4_address: 192.168.100.3
+    ports:
+      - "9043:9042"
+    volumes:
+      - scylla2:/var/lib/scylla
+      - ./docker/scylladb/scylla.yaml:/etc/scylla/scylla.yaml
+      - ./docker/scylladb/cassandra-rackdc.properties:/etc/scylla/cassandra-rackdc.properties
+    depends_on:
+      - scylla1

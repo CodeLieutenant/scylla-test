@@ -1,0 +1,10 @@
+{
+  "scylladb": {
+    "hosts": ["192.168.100.2", "192.168.100.3"],
+    "consistency": "LOCAL_QUORUM",
+    "connection_timeout": "5s",
+    "reconnect_interval": "10s",
+    "keyspace": "test",
+    "dc": "DC1"
+  }
+}
