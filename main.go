@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/CodeLieutenant/scylladbtest/pkg/config"
-	"github.com/CodeLieutenant/scylladbtest/pkg/database"
 	"github.com/CodeLieutenant/scylladbtest/pkg/pool"
 	"github.com/CodeLieutenant/scylladbtest/pkg/serivices/random"
 	"github.com/CodeLieutenant/scylladbtest/pkg/serivices/ratelimit"
@@ -77,10 +76,10 @@ func main() {
 		AddSource: true,
 	}))
 
-	cfg, err := parseConfig()
-	if err != nil {
-		log.Panicf("Failed to parse config: %v", err)
-	}
+	//cfg, err := parseConfig()
+	//if err != nil {
+	//	log.Panicf("Failed to parse config: %v", err)
+	//}
 
 	logger.Info("Stating the application",
 		slog.Int("pid", pid),
@@ -100,15 +99,15 @@ func main() {
 
 	defer cancel()
 
-	session, cleanup, err := database.NewScyllaDBConnection(&cfg.ScyllaDB)
-	defer cleanup()
+	//session, cleanup, err := database.NewScyllaDBConnection(&cfg.ScyllaDB)
+	//defer cleanup()
 
-	if err != nil {
-		log.Panicf("Failed to create ScyllaDB cluster config: %v", err)
-	}
+	//if err != nil {
+	//	log.Panicf("Failed to create ScyllaDB cluster config: %v", err)
+	//}
 
-	limiter := ratelimit.NewLeakyBucket(1, parallelism, 1*time.Second)
-	inserter := random.New(session, limiter, logger)
+	limiter := ratelimit.NewLeakyBucket(1, 1*time.Second)
+	inserter := random.New(nil, limiter, logger)
 
 	wp := pool.New(parallelism)
 	go wp.Start(ctx, inserter)

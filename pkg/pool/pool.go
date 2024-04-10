@@ -36,6 +36,10 @@ func New(count int) *WorkerPool {
 	}
 }
 
+func Single() *WorkerPool {
+	return New(1)
+}
+
 func (w *WorkerPool) watcher(ctx context.Context, runnable Runnable) {
 	for {
 		if err := w.sem.Acquire(ctx, 1); err != nil {

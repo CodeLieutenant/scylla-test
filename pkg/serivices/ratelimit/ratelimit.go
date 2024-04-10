@@ -2,7 +2,8 @@ package ratelimit
 
 import (
 	"context"
-	"io"
+	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -10,47 +11,65 @@ var _ Limiter = &LeakyBucketLimiter{}
 
 type (
 	Limiter interface {
-		io.Closer
-		Ready(ctx context.Context) <-chan time.Time
+		Ready(ctx context.Context) error
 	}
 	LeakyBucketLimiter struct {
-		limit int
-		dur   time.Duration
-		chs   []chan time.Time
+		pool          sync.Pool
+		next          atomic.Int64
+		singleRequest time.Duration
 	}
 )
 
-func NewLeakyBucket(limit, parallel int, dur time.Duration) Limiter {
+func NewLeakyBucket(limit int64, rate time.Duration) Limiter {
+	singleRequest := int64(rate) / limit
+
 	return &LeakyBucketLimiter{
-		limit: limit,
-		dur:   dur,
-		chs:   make([]chan time.Time, parallel),
+		singleRequest: time.Duration(singleRequest),
+		pool: sync.Pool{
+			New: func() any {
+				t := time.NewTicker(1 * time.Second)
+				t.Stop()
+				return t
+			},
+		},
 	}
 }
 
-func (l *LeakyBucketLimiter) Ready(ctx context.Context) <-chan time.Time {
-	ch := make(chan time.Time)
-	l.chs = append(l.chs, ch)
+func (l *LeakyBucketLimiter) Ready(ctx context.Context) error {
+	newTimeOfNextPermissionIssue := int64(0)
+	now := int64(0)
+	ticker := l.pool.Get().(*time.Ticker)
 
-	// Bad IMPL
-	go func() {
-		defer close(ch)
-		ticker := time.NewTicker(l.dur)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				ch <- time.Now()
-			}
+	for {
+		select {
+		case <-ctx.Done():
+			return context.Canceled
+		default:
 		}
-	}()
 
-	return ch
-}
+		now = time.Now().UnixNano()
+		timeOfNextPermissionIssue := l.next.Load()
 
-func (l *LeakyBucketLimiter) Close() error {
+		if timeOfNextPermissionIssue == 0 || now-timeOfNextPermissionIssue > int64(l.singleRequest) {
+			newTimeOfNextPermissionIssue = now
+		} else {
+			newTimeOfNextPermissionIssue = timeOfNextPermissionIssue + int64(l.singleRequest)
+		}
+
+		if l.next.CompareAndSwap(timeOfNextPermissionIssue, newTimeOfNextPermissionIssue) {
+			break
+		}
+	}
+
+	if sleepDuration := time.Duration(newTimeOfNextPermissionIssue - now); sleepDuration > 0 {
+		ticker.Reset(sleepDuration)
+		select {
+		case <-ctx.Done():
+			return context.Canceled
+		case <-ticker.C:
+			return nil
+		}
+	}
+
 	return nil
 }
