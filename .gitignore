@@ -1,0 +1,7 @@
+tmp
+.idea
+.DS_Store
+logs/
+bin/
+coverage.txt
+config.json

@@ -1,0 +1,69 @@
+version: '3'
+
+tasks:
+  build:
+    vars:
+      DEBUG: on
+    cmds:
+      - go build {{ if eq .DEBUG "on" }} -tags gocql_debug {{ end }} -o bin/scylladbtest main.go
+  run:
+    vars:
+      DEBUG: on
+    cmds:
+      - go run {{ if eq .DEBUG "on" }} -tags gocql_debug {{ end }} main.go
+  migrate:
+    vars:
+      LOCAL_SCHEMA_FILE_PATH: ./migrations/schema.cql
+      DOCKER_SCHEMA_FILE_PATH: /tmp/schema.cql
+      SCYLLADB_HOST: scylla1
+    cmds:
+      - docker cp {{ .LOCAL_SCHEMA_FILE_PATH }} {{ .SCYLLADB_HOST }}:{{ .DOCKER_SCHEMA_FILE_PATH }}
+      - docker exec {{ .SCYLLADB_HOST }} cqlsh -f {{ .DOCKER_SCHEMA_FILE_PATH }}
+  setup:
+    vars:
+      LOCAL_SCHEMA_FILE_PATH: ./migrations/schema.cql
+      DOCKER_SCHEMA_FILE_PATH: /tmp/schema.cql
+      SCYLLADB_HOST: scylla1
+    cmds:
+      - docker compose up -d
+      - docker cp {{ .LOCAL_SCHEMA_FILE_PATH }} {{ .SCYLLADB_HOST }}:{{ .DOCKER_SCHEMA_FILE_PATH }}
+      - docker exec {{ .SCYLLADB_HOST }} cqlsh -f {{ .DOCKER_SCHEMA_FILE_PATH }}
+  fmt:
+    cmds:
+      - gofumpt -l -w docs/ cmd/ pkg/ proto/ main.go
+      - gci write --skip-generated --skip-vendor -s standard -s default docs/ cmd/ pkg/ proto/ main.go
+  lint:
+    cmds:
+      - golangci-lint run --color "always" -v
+  sec:
+    cmds:
+      - gosec ./...
+  tidy:
+    cmds:
+      - rm -f go.sum
+      - go mod tidy
+  update:
+    cmds:
+      - go get -u ./... # Updates regular packages
+      - go get -u -t ./... # Updates Test packages
+  cli-tools:
+    cmds:
+      - go install github.com/gotesttools/gotestfmt/v2/cmd/gotestfmt@latest
+      - go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+      - go install github.com/securego/gosec/v2/cmd/gosec@latest
+      - go install github.com/uudashr/gopkgs/v2/cmd/gopkgs@latest
+      - go install github.com/ramya-rao-a/go-outline@latest
+      - go install github.com/cweill/gotests/gotests@latest
+      - go install github.com/cosmtrek/air@latest
+      - go install github.com/fatih/gomodifytags@latest
+      - go install github.com/daixiang0/gci@latest
+      - go install github.com/josharian/impl@latest
+      - go install github.com/haya14busa/goplay/cmd/goplay@latest
+      - go install github.com/go-delve/delve/cmd/dlv@latest
+      - go install mvdan.cc/gofumpt@latest
+      - go install github.com/swaggo/swag/cmd/swag@latest
+  test:
+    cmds:
+      - go test -covermode=atomic -race -coverprofile=coverage.txt -timeout 5m -json -v ./... | gotestfmt -showteststatus
+    env:
+      GOMAXPROCS: 4

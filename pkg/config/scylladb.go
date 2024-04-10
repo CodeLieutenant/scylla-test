@@ -1,6 +1,8 @@
 package config
 
 import (
+	"log"
+	"os"
 	"time"
 
 	"github.com/gocql/gocql"
@@ -16,38 +18,30 @@ type ScyllaDB struct {
 }
 
 var defaultScyllaDBConfig = ScyllaDB{
-	Consistency:       "LOCAL_QUORUM",
-	Keyspace:          "test",
-	ReconnectInterval: 10 * time.Second,
-	ConnectionTimeout: 5 * time.Second,
+	Consistency:       "QUORUM",
+	Keyspace:          "scyllatest",
+	ReconnectInterval: 5 * time.Second,
+	ConnectionTimeout: 10 * time.Second,
 	DC:                "DC1",
-	Hosts:             []string{"127.0.0.1:9042", "127.0.0.1:9043"},
+	Hosts:             []string{"127.0.0.1:9042"},
 }
 
 func (cfg *ScyllaDB) ToScyllaClusterConfig() (*gocql.ClusterConfig, error) {
 	cluster := gocql.NewCluster(cfg.Hosts...)
-
-	consistency := gocql.LocalQuorum
-
+	consistency := gocql.Quorum
 	if err := consistency.UnmarshalText([]byte(cfg.Consistency)); err != nil {
 		return nil, err
 	}
 
 	cluster.Consistency = consistency
-	cluster.ReconnectionPolicy = &gocql.ExponentialReconnectionPolicy{
-		InitialInterval: 1 * time.Second,
-		MaxInterval:     30 * time.Second,
-		MaxRetries:      10,
-	}
 	cluster.ConnectTimeout = cfg.ConnectionTimeout
-	cluster.Keyspace = cfg.Keyspace
 	cluster.Authenticator = nil
-
-	cluster.DisableSkipMetadata = false
-	cluster.CQLVersion = "3.0.0"
 	cluster.ReconnectInterval = cfg.ReconnectInterval
 	cluster.Compressor = gocql.SnappyCompressor{}
 	cluster.DefaultTimestamp = true
+	cluster.DisableSkipMetadata = false
+	cluster.Keyspace = cfg.Keyspace
+	cluster.Logger = log.New(os.Stderr, "[ScyllaDB] ", log.LstdFlags|log.Lshortfile|log.LUTC|log.Lmsgprefix)
 
 	fallback := gocql.RoundRobinHostPolicy()
 

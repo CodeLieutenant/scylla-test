@@ -1,0 +1,8 @@
+{
+  "scylladb": {
+    "hosts": ["scylla1:9042"],
+    "consistency": "QUORUM",
+    "keyspace": "scyllatest",
+    "dc": "DC1"
+  }
+}
