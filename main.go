@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"io"
 	"log"
 	"log/slog"
@@ -13,18 +14,20 @@ import (
 	"time"
 
 	"github.com/CodeLieutenant/scylladbtest/pkg/config"
+	"github.com/CodeLieutenant/scylladbtest/pkg/database"
 	"github.com/CodeLieutenant/scylladbtest/pkg/pool"
-	"github.com/CodeLieutenant/scylladbtest/pkg/serivices/random"
-	"github.com/CodeLieutenant/scylladbtest/pkg/serivices/ratelimit"
+	"github.com/CodeLieutenant/scylladbtest/pkg/services/metrics"
+	"github.com/CodeLieutenant/scylladbtest/pkg/services/random"
+	"github.com/CodeLieutenant/scylladbtest/pkg/services/ratelimit"
 	"github.com/CodeLieutenant/scylladbtest/pkg/utils"
 )
 
 var (
-	parallelism  int
-	reqPerSec    int
-	scyllaDBHost string
-	configFile   string
-	logLevel     string
+	parallelism int
+	requests    int
+	timeFrame   time.Duration
+	configFile  string
+	logLevel    string
 )
 
 func parseConfig() (*config.Config, error) {
@@ -32,7 +35,6 @@ func parseConfig() (*config.Config, error) {
 
 	if _, err := os.Stat(configFile); err == nil {
 		file, err := os.OpenFile(configFile, os.O_RDONLY, 0o644)
-
 		if err != nil {
 			return nil, err
 		}
@@ -51,14 +53,11 @@ func parseConfig() (*config.Config, error) {
 }
 
 func main() {
-	pid := os.Getpid()
-	cwd, _ := os.Getwd()
-
 	flag.IntVar(&parallelism, "parallelism", utils.Parallelism(), "Maximum parallelism")
-	flag.IntVar(&reqPerSec, "req", 1, "Max Requests per second to ScyllaDB")
-	flag.StringVar(&scyllaDBHost, "host", "127.0.0.1:9042", "ScyllaDB host")
+	flag.IntVar(&requests, "requests", 1, "Max Requests per second to ScyllaDB")
 	flag.StringVar(&configFile, "config", "config.json", "JSON Configuration file")
 	flag.StringVar(&logLevel, "log-level", "info", "Logging level (debug, info, warn, error)")
+	flag.DurationVar(&timeFrame, "time-frame", 1*time.Second, "Time frame between requests")
 
 	flag.Parse()
 
@@ -76,10 +75,13 @@ func main() {
 		AddSource: true,
 	}))
 
-	//cfg, err := parseConfig()
-	//if err != nil {
-	//	log.Panicf("Failed to parse config: %v", err)
-	//}
+	cfg, err := parseConfig()
+	if err != nil {
+		log.Panicf("Failed to parse config: %v", err)
+	}
+
+	pid := os.Getpid()
+	cwd, _ := os.Getwd()
 
 	logger.Info("Stating the application",
 		slog.Int("pid", pid),
@@ -99,18 +101,31 @@ func main() {
 
 	defer cancel()
 
-	//session, cleanup, err := database.NewScyllaDBConnection(&cfg.ScyllaDB)
-	//defer cleanup()
+	session, cleanup, err := database.NewScyllaDBConnection(&cfg.ScyllaDB, logger)
+	defer cleanup()
 
-	//if err != nil {
-	//	log.Panicf("Failed to create ScyllaDB cluster config: %v", err)
-	//}
+	if err != nil {
+		log.Panicf("Failed to create ScyllaDB cluster config: %v", err)
+	}
 
-	limiter := ratelimit.NewLeakyBucket(1, 1*time.Second)
-	inserter := random.New(nil, limiter, logger)
+	limiter := ratelimit.NewLeakyBucket(int64(requests), timeFrame)
+	m := metrics.New(10_000)
+	inserter := random.New(session, m, limiter, logger)
 
 	wp := pool.New(parallelism)
 	go wp.Start(ctx, inserter)
+	go func() {
+		ticker := time.NewTicker(10 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				_, _ = fmt.Fprintln(os.Stdout, m.Collect().String())
+			}
+		}
+	}()
 
 	logger.Info("Waiting for SIGTERM or SIGINT to exit...")
 	defer logger.Info("Exiting program...")

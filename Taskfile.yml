@@ -26,6 +26,8 @@ tasks:
       SCYLLADB_HOST: scylla1
     cmds:
       - docker compose up -d
+      - echo 'Entering sleep mode... Waiting for cluster to be ready...'
+      - sleep 40
       - docker cp {{ .LOCAL_SCHEMA_FILE_PATH }} {{ .SCYLLADB_HOST }}:{{ .DOCKER_SCHEMA_FILE_PATH }}
       - docker exec {{ .SCYLLADB_HOST }} cqlsh -f {{ .DOCKER_SCHEMA_FILE_PATH }}
   fmt:

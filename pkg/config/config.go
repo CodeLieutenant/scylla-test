@@ -9,12 +9,12 @@ type Config struct {
 	ScyllaDB ScyllaDB `json:"scylladb"`
 }
 
-var defaultConfig = Config{
-	ScyllaDB: defaultScyllaDBConfig,
+var DefaultConfig = Config{
+	ScyllaDB: DefaultScyllaDBConfig,
 }
 
 func New(input io.Reader) (*Config, error) {
-	cfg := defaultConfig
+	cfg := DefaultConfig
 
 	if input == nil {
 		return &cfg, nil
