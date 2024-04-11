@@ -11,15 +11,15 @@ import (
 
 type (
 	Collector struct {
-		// More lock free algorithm can be implemented
-		// using ring-buffer -> for this kind of application
-		// it will be fine... (until it is not)
 		bucket     timeBucket
 		counter    atomic.Uint64
 		cumulative atomic.Int64
 	}
 
 	timeBucket struct {
+		// More lock free algorithm can be implemented
+		// using ring-buffer -> for this kind of application
+		// it will be fine... (until it is not)
 		durations []time.Duration
 		count     int
 		full      bool
@@ -27,14 +27,14 @@ type (
 	}
 
 	Metrics struct {
-		Rate     uint64
-		Count    uint64
-		Cumulate time.Duration
-		P99      time.Duration
-		P95      time.Duration
-		P90      time.Duration
-		P75      time.Duration
-		P50      time.Duration
+		Count       uint64
+		AverageTime time.Duration
+		Cumulate    time.Duration
+		P99         time.Duration
+		P95         time.Duration
+		P90         time.Duration
+		P75         time.Duration
+		P50         time.Duration
 	}
 )
 
@@ -52,16 +52,21 @@ func (m *Collector) Collect() Metrics {
 	count := m.counter.Load()
 	bucket := m.bucket.Copy()
 
+	var avg uint64
+
+	for _, d := range bucket.durations {
+		avg += uint64(d)
+	}
 
 	return Metrics{
-		Rate:     uint64(cumulativeTime) / count,
-		Count:    count,
-		Cumulate: time.Duration(cumulativeTime),
-		P99:      bucket.ExtractP(0.99),
-		P95:      bucket.ExtractP(0.95),
-		P90:      bucket.ExtractP(0.90),
-		P75:      bucket.ExtractP(0.75),
-		P50:      bucket.ExtractP(0.50),
+		Count:       count,
+		AverageTime: time.Duration(avg / count),
+		Cumulate:    time.Duration(cumulativeTime),
+		P99:         bucket.ExtractP(0.99),
+		P95:         bucket.ExtractP(0.95),
+		P90:         bucket.ExtractP(0.90),
+		P75:         bucket.ExtractP(0.75),
+		P50:         bucket.ExtractP(0.50),
 	}
 }
 
@@ -130,8 +135,9 @@ func (p Metrics) String() string {
 	var b strings.Builder
 
 	_, _ = b.WriteString("Metrics:")
-	_, _ = b.WriteString("\rRate: ")
-	_, _ = b.WriteString(strconv.FormatUint(p.Rate, 10))
+
+	_, _ = b.WriteString("\r\nAverage Time: ")
+	_, _ = b.WriteString(p.AverageTime.String())
 
 	_, _ = b.WriteString("\r\nCount: ")
 	_, _ = b.WriteString(strconv.FormatUint(p.Count, 10))
