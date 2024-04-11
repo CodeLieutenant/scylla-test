@@ -7,9 +7,8 @@ import (
 	"math/rand/v2"
 	"time"
 
-	"github.com/gocql/gocql"
-
 	"github.com/CodeLieutenant/scylladbtest/pkg/services/ratelimit"
+	"github.com/gocql/gocql"
 )
 
 type Metrics interface {

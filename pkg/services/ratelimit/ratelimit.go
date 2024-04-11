@@ -36,8 +36,8 @@ func NewLeakyBucket(limit int64, rate time.Duration) Limiter {
 }
 
 func (l *LeakyBucketLimiter) Ready(ctx context.Context) error {
-	newTimeTicket := int64(0)
-	now := int64(0)
+	newTimeTicket := int64(0) //nolint:wastedassign
+	now := int64(0)           //nolint:wastedassign
 	ticker := l.pool.Get().(*time.Ticker)
 
 	for {
