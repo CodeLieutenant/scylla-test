@@ -86,7 +86,7 @@ func (w *WorkerPool) Close() error {
 	w.mu.Lock()
 	if w.cancel != nil {
 		w.cancel()
-		w.cancel = nil // after this, we can call start again with new context
+		w.cancel = nil // after this, we can call Start again with new context
 	}
 	w.mu.Unlock()
 
