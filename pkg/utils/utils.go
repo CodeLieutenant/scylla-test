@@ -9,7 +9,7 @@ func Parallelism(input ...int) int {
 	// (especially in IO bounded environments)
 	defaults := runtime.GOMAXPROCS(0)
 
-	if len(input) == 0 {
+	if len(input) == 0 || input[0] == 0 {
 		return defaults
 	}
 
