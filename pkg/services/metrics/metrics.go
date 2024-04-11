@@ -134,7 +134,7 @@ func (p *timeBucket) Copy() *timeBucket {
 func (p Metrics) String() string {
 	var b strings.Builder
 
-	_, _ = b.WriteString("Metrics:")
+	_, _ = b.WriteString("\rMetrics:")
 
 	_, _ = b.WriteString("\r\nAverage Time: ")
 	_, _ = b.WriteString(p.AverageTime.String())

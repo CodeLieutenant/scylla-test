@@ -36,7 +36,7 @@ func NewLeakyBucket(limit int64, rate time.Duration) Limiter {
 }
 
 func (l *LeakyBucketLimiter) Ready(ctx context.Context) error {
-	newTimeOfNextPermissionIssue := int64(0)
+	newTimeTicket := int64(0)
 	now := int64(0)
 	ticker := l.pool.Get().(*time.Ticker)
 
@@ -48,20 +48,20 @@ func (l *LeakyBucketLimiter) Ready(ctx context.Context) error {
 		}
 
 		now = time.Now().UnixNano()
-		timeOfNextPermissionIssue := l.next.Load()
+		timeTicket := l.next.Load()
 
-		if timeOfNextPermissionIssue == 0 || now-timeOfNextPermissionIssue > int64(l.singleRequest) {
-			newTimeOfNextPermissionIssue = now
+		if timeTicket == 0 || now-timeTicket > int64(l.singleRequest) {
+			newTimeTicket = now
 		} else {
-			newTimeOfNextPermissionIssue = timeOfNextPermissionIssue + int64(l.singleRequest)
+			newTimeTicket = timeTicket + int64(l.singleRequest)
 		}
 
-		if l.next.CompareAndSwap(timeOfNextPermissionIssue, newTimeOfNextPermissionIssue) {
+		if l.next.CompareAndSwap(timeTicket, newTimeTicket) {
 			break
 		}
 	}
 
-	if sleepDuration := time.Duration(newTimeOfNextPermissionIssue - now); sleepDuration > 0 {
+	if sleepDuration := time.Duration(newTimeTicket - now); sleepDuration > 0 {
 		ticker.Reset(sleepDuration)
 		select {
 		case <-ctx.Done():
