@@ -9,18 +9,21 @@ import (
 
 	"github.com/gocql/gocql"
 
-	"github.com/CodeLieutenant/scylladbtest/pkg/services/metrics"
 	"github.com/CodeLieutenant/scylladbtest/pkg/services/ratelimit"
 )
+
+type Metrics interface {
+	Do(duration time.Duration)
+}
 
 type Insert struct {
 	session *gocql.Session
 	limiter ratelimit.Limiter
-	metrics *metrics.Collector
+	metrics Metrics
 	logger  *slog.Logger
 }
 
-func New(session *gocql.Session, metrics *metrics.Collector, limiter ratelimit.Limiter, logger *slog.Logger) *Insert {
+func New(session *gocql.Session, metrics Metrics, limiter ratelimit.Limiter, logger *slog.Logger) *Insert {
 	return &Insert{
 		session: session,
 		limiter: limiter,
